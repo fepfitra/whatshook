@@ -16,14 +16,18 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
+	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"google.golang.org/protobuf/proto"
 )
 
 var webhookURL = ""
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
+
+var client *whatsmeow.Client
 
 func sendToWebhook(msg *events.Message) {
 	jsonData, err := json.Marshal(msg)
@@ -52,8 +56,32 @@ func sendToWebhook(msg *events.Message) {
 func eventHandler(evt interface{}) {
 	switch v := evt.(type) {
 	case *events.Message:
-		fmt.Println("Received a message!", v.Message.GetConversation())
-		go sendToWebhook(v)
+		msgClone := proto.Clone(v.Message).(*waProto.Message)
+		eventCopy := *v
+		eventCopy.Message = msgClone
+
+		go sendToWebhook(&eventCopy)
+
+		originalText := v.Message.GetConversation()
+		if originalText == "" {
+			fmt.Println("Received non-text message, forwarded to webhook.")
+			return
+		}
+
+		fmt.Printf("Received text message from %s: %s\n", v.Info.Sender.User, originalText)
+		replyText := fmt.Sprintf("> %s\npublished!", originalText)
+		replyMsg := &waProto.Message{
+			ExtendedTextMessage: &waProto.ExtendedTextMessage{
+				Text: proto.String(replyText),
+				ContextInfo: &waProto.ContextInfo{
+					StanzaID:      &v.Info.ID,
+					Participant:   proto.String(v.Info.Sender.String()),
+					QuotedMessage: msgClone,
+				},
+			},
+		}
+
+		go client.SendMessage(context.Background(), v.Info.Sender, replyMsg)
 	}
 }
 
@@ -75,7 +103,7 @@ func main() {
 		panic(err)
 	}
 	clientLog := waLog.Stdout("Client", "DEBUG", true)
-	client := whatsmeow.NewClient(deviceStore, clientLog)
+	client = whatsmeow.NewClient(deviceStore, clientLog)
 	client.AddEventHandler(eventHandler)
 
 	if client.Store.ID == nil {
