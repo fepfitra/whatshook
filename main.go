@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
@@ -19,7 +21,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-const webhookURL = "http://localhost:7777"
+var webhookURL = ""
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
@@ -56,6 +58,12 @@ func eventHandler(evt interface{}) {
 }
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	webhookURL = os.Getenv("WEBHOOK_URL")
+
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	ctx := context.Background()
 	container, err := sqlstore.New(ctx, "sqlite3", "file:data.db?_foreign_keys=on", dbLog)
