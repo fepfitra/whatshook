@@ -13,3 +13,8 @@ fi
 wget https://github.com/fepfitra/whatshook/releases/download/${version}/whatshook -O $name
 chmod +x $name
 ```
+
+# Quick Start
+```bash
+WEBHOOK_URL=http://yourhook.com ./whatshook_x.x.x
+```
