@@ -11,4 +11,5 @@ if [ -f $name ]; then
 		exit 0
 fi
 wget https://github.com/fepfitra/whatshook/releases/download/${version}/whatshook -O $name
+chmod +x $name
 ```
